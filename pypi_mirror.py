@@ -16,6 +16,7 @@ import abc
 import locale
 import json
 import glob
+import posixpath
 
 metadata_ext = '.metadata.json'
 
@@ -61,8 +62,10 @@ def parse_pkg_metadata(metadata):
     version = m.group(1).decode('utf-8').strip()
     m = re.search(rb'^Home-page: (.*)$', metadata, re.MULTILINE)
     if not m:
-        raise Exception('invalid metadata file')
-    homepage = m.group(1).decode('utf-8').strip()
+        # raise Exception('invalid metadata file')
+        homepage = None
+    else:
+        homepage = m.group(1).decode('utf-8').strip()
     return Metadata(name, normalize(name), version, homepage)
 
 def get_metadata_from_archive(f, extension, extract_fn, member='PKG-INFO'):
@@ -86,7 +89,7 @@ def get_metadata_from_wheel(f):
     whl = zipfile.ZipFile(f)
     whl_name = os.path.basename(f)
     prefix = '-'.join(whl_name.split('-', 2)[:2])
-    metadata_file = os.path.join(prefix + '.dist-info', 'METADATA')
+    metadata_file = posixpath.join(prefix + '.dist-info', 'METADATA')
     try:
         metadata = whl.open(metadata_file).read()
     except KeyError:
@@ -204,7 +207,13 @@ def list_dir(d, test=os.path.isfile):
 
 def list_pkgs(download_dir, fix_names=True):
     test = lambda f: not f.endswith(metadata_ext)
-    all_pkgs = [get_pkg(f) for f in list_dir(download_dir, test)]
+    all_pkgs = []
+    for f in list_dir(download_dir, test):
+        try:
+            all_pkgs.append(get_pkg(f))
+        except Exception as ex:
+            print(ex)
+        
     if fix_names:
         sort_fn = lambda p: p.metadata.norm_name
         sorted_pkgs = sorted(all_pkgs, key=sort_fn)
